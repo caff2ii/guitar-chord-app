@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>結他Chord庫v0.1a</title>
+    <title>結他Chord庫v0.1b</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root { 
@@ -18,6 +18,8 @@
             --border-color: #cbd5e1;
             --input-border: #cbd5e1;
             --instruction-color: #64748b;
+            --outline-bg: rgba(255,255,255,0.9);
+            --outline-hover: rgba(255,255,255,1);
             --page-scale: 1;
         }
         [data-theme="dark"] { 
@@ -32,12 +34,13 @@
             --border-color: #334155;
             --input-border: #334155;
             --instruction-color: #cbd5e1;
+            --outline-bg: rgba(255,255,255,0.08);
+            --outline-hover: rgba(255,255,255,0.12);
         }
         body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 20px; display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; transition: background-color 0.2s, color 0.2s; }
         .container { max-width: 1400px; transform-origin: top center; transform: scale(var(--page-scale)); }
         header { text-align: center; margin-bottom: 24px; }
         .grid { display: grid; grid-template-columns: 1fr; gap: 24px; }
-        @media (min-width: 992px) { .grid { grid-template-columns: 450px 1fr; } }
         .card { background: var(--card-bg); padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); height: fit-content; transition: background-color 0.2s; }
         .form-group { margin-bottom: 16px; }
         label { display: block; font-weight: 600; margin-bottom: 6px; }
@@ -52,9 +55,10 @@
         .btn:hover { background-color: var(--primary-hover); transform: translateY(-1px); }
         .btn-success { background-color: var(--success-color); width: auto; margin-top: 0; }
         .btn-success:hover { background-color: #15803d; }
-        .btn-outline { background-color: rgba(255,255,255,0.9); color: var(--text-color); border: 1px solid var(--border-color); }
-        .btn-outline:hover { background-color: rgba(255,255,255,1); }
+        .btn-outline { background-color: var(--outline-bg); color: var(--text-color); border: 1px solid var(--border-color); }
+        .btn-outline:hover { background-color: var(--outline-hover); }
         .floating-add-button { position: fixed; left: 16px; top: 50%; transform: translateY(-50%); z-index: 20; width: 48px; height: 48px; border-radius: 50%; font-size: 24px; padding: 0; display: flex; justify-content: center; align-items: center; box-shadow: 0 12px 30px rgba(0,0,0,0.18); }
+        .floating-edit-button { position: fixed; left: 16px; top: calc(50% + 68px); transform: translateY(-50%); z-index: 20; width: 44px; height: 44px; border-radius: 50%; font-size: 18px; padding: 0; display: flex; justify-content: center; align-items: center; box-shadow: 0 10px 24px rgba(0,0,0,0.12); }
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.35); opacity: 0; visibility: hidden; transition: opacity 0.2s; z-index: 25; }
         .modal-overlay.active { opacity: 1; visibility: visible; }
         .modal-window { position: fixed; top: 12%; left: 50%; transform: translate(-50%, -20px); width: min(92%, 540px); background: var(--card-bg); border-radius: 18px; box-shadow: 0 28px 70px rgba(0,0,0,0.15); padding: 24px; opacity: 0; visibility: hidden; transition: opacity 0.2s, transform 0.2s; z-index: 30; }
@@ -65,6 +69,7 @@
         .modal-actions { display: flex; justify-content: flex-end; margin-top: 18px; }
         .key-display, .zoom-display { font-weight: 600; min-width: 80px; text-align: center; }
         .song-title-view { font-size: 24px; font-weight: bold; margin-bottom: 20px; }
+        .song-title-view.placeholder { color: var(--instruction-color); font-style: italic; }
         .lyrics-sheet { column-gap: 40px; column-count: 1; column-fill: auto; white-space: pre-wrap; }
         @media (min-width: 768px) { .lyrics-sheet { column-count: 2; } }
         @media (min-width: 1024px) { .lyrics-sheet { column-count: 3; } }
@@ -81,6 +86,7 @@
 </head>
 <body>
 <button class="btn btn-primary floating-add-button" id="addSongButton" onclick="openNewSongModal()" aria-label="新增歌曲" title="新增歌曲">+</button>
+<button class="btn btn-outline floating-edit-button" id="editSongButton" onclick="openEditSongModal()" aria-label="編輯歌曲" title="編輯歌曲">✎</button>
 <div class="container">
     <header><h1>Guitar Chord Transposer</h1></header>
     <div class="grid">
@@ -124,7 +130,7 @@
                 <div class="toolbar-right">
                     <label for="songSelect">歌單</label>
                     <select id="songSelect" onchange="loadSelectedSong()">
-                        <option value="">-- ✨ 建立新歌曲 --</option>
+                        <option value="">-- ✨ 選擇歌曲 --</option>
                     </select>
                 </div>
                 <span id="statusMsg"></span>
@@ -162,6 +168,33 @@
         if (lyricsInput) lyricsInput.value = '';
         renderSong();
         showSongModal();
+    }
+
+    function openEditSongModal() {
+        const select = document.getElementById('songSelect');
+        if (!select) return alert('找不到歌曲選單');
+        const selectedId = select.value;
+        if (!selectedId) {
+            return alert('請先從歌單選擇要修改的歌曲');
+        }
+        const song = fetchedSongs.find(s => s.id == selectedId);
+        if (!song) return alert('未能找到所選歌曲');
+        const titleInput = document.getElementById('songTitle');
+        const lyricsInput = document.getElementById('rawLyrics');
+        if (titleInput) titleInput.value = song.title || '';
+        if (lyricsInput) lyricsInput.value = song.lyrics || '';
+        renderSong();
+        showSongModal();
+    }
+
+    function updateEditButtonState() {
+        const select = document.getElementById('songSelect');
+        const btn = document.getElementById('editSongButton');
+        if (!btn) return;
+        const has = select && select.value;
+        btn.disabled = !has;
+        btn.style.opacity = has ? '1' : '0.5';
+        btn.title = has ? '編輯歌曲' : '請先選擇歌曲';
     }
 
     function showSongModal() {
@@ -240,6 +273,8 @@
         loadChordPreference();
         fetchAllSongs();
         renderSong();
+        const select = document.getElementById('songSelect');
+        if (select) select.addEventListener('change', updateEditButtonState);
     };
 
     // 即時預覽
@@ -252,13 +287,14 @@
         fetchedSongs = data;
         const select = document.getElementById('songSelect');
         const currentVal = select.value;
-        select.innerHTML = '<option value="">-- ✨ 建立新歌曲 --</option>';
+        select.innerHTML = '<option value="">-- ✨ 選擇歌曲 --</option>';
         data.forEach(song => {
             const option = document.createElement('option');
             option.value = song.id; option.innerText = song.title;
             select.appendChild(option);
         });
         if (currentVal) select.value = currentVal;
+        updateEditButtonState();
     }
 
     function loadSelectedSong() {
@@ -287,16 +323,18 @@
         if (!title) return alert('請先輸入歌名！');
 
         statusMsg.innerText = "正在儲存...";
-        let error;
+        let error, newId = null;
 
         if (selectedId) {
-            // 更新舊歌 (這裡需要 RLS 開放 UPDATE 權限，為安全起見，我們暫時用網頁新增。如果想直接在網頁改舊歌，請在 Supabase 額外加上 UPDATE 的政策)
-            const result = await _supabase.from('songs').update({ title, lyrics }).eq('id', selectedId);
+            // update existing song and return updated row
+            const result = await _supabase.from('songs').update({ title, lyrics }).eq('id', selectedId).select().single();
             error = result.error;
+            if (!error && result.data) newId = result.data.id;
         } else {
-            // 新增歌
-            const result = await _supabase.from('songs').insert([{ title, lyrics }]);
+            // insert new song and return inserted row
+            const result = await _supabase.from('songs').insert([{ title, lyrics }]).select().single();
             error = result.error;
+            if (!error && result.data) newId = result.data.id;
         }
 
         if (error) {
@@ -305,6 +343,13 @@
         } else {
             statusMsg.innerText = "雲端儲存成功！ ✔";
             await fetchAllSongs();
+            // auto-select the saved/created song
+            const select = document.getElementById('songSelect');
+            if (select && newId) {
+                select.value = newId;
+                loadSelectedSong();
+            }
+            closeSongModal();
             setTimeout(() => statusMsg.innerText = "", 3000);
         }
     }
@@ -336,9 +381,18 @@
     }
 
     function renderSong() {
-        const title = document.getElementById('songTitle').value || "未命名歌曲";
+        const title = document.getElementById('songTitle').value || "";
         const lyrics = document.getElementById('rawLyrics').value;
-        document.getElementById('songTitleView').innerText = title;
+        const titleView = document.getElementById('songTitleView');
+        if (titleView) {
+            if (title === '') {
+                titleView.innerText = '請選擇歌曲';
+                titleView.classList.add('placeholder');
+            } else {
+                titleView.innerText = title;
+                titleView.classList.remove('placeholder');
+            }
+        }
 
         const lines = lyrics.split('\n');
         const sections = [];
