@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guitar Chord Transposer</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root { --primary-color: #2563eb; --primary-hover: #1d4ed8; --bg-color: #f8fafc; --card-bg: #ffffff; --text-color: #1e293b; --chord-color: #df5334; --section-bg: #334155; }
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        header { text-align: center; margin-bottom: 24px; }
+        .grid { display: grid; grid-template-columns: 1fr; gap: 24px; }
+        @media (min-width: 992px) { .grid { grid-template-columns: 350px 1fr; } }
+        .card { background: var(--card-bg); padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); height: fit-content; }
+        label { display: block; font-weight: 600; margin-bottom: 6px; }
+        select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; }
+        .toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid #e2e8f0; }
+        .btn { background-color: var(--primary-color); color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 500; }
+        .btn-outline { background-color: transparent; color: var(--text-color); border: 1px solid #cbd5e1; }
+        .key-display { font-weight: 600; min-width: 80px; text-align: center; }
+        .song-title-view { font-size: 24px; font-weight: bold; margin-bottom: 20px; }
+        .lyrics-sheet { display: grid; grid-template-columns: 1fr; gap: 40px; }
+        @media (min-width: 768px) { .lyrics-sheet { grid-template-columns: 1fr 1fr; } }
+        .column { font-family: 'Courier New', Courier, monospace; font-size: 16px; line-height: 1.8; white-space: pre-wrap; }
+        .chord-line { color: var(--chord-color); font-weight: bold; margin-bottom: -4px; display: block; }
+        .text-line { display: block; margin-bottom: 8px; }
+        .section-header { display: inline-block; background-color: var(--section-bg); color: white; padding: 2px 10px; border-radius: 4px; font-weight: bold; font-size: 13px; margin-top: 14px; margin-bottom: 6px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header><h1>Guitar Chord Transposer</h1></header>
+    <div class="grid">
+        <div class="card">
+            <label for="songSelect">選擇雲端歌曲 (Select Song)</label>
+            <select id="songSelect" onchange="loadSelectedSong()">
+                <option value="">-- 請選擇歌曲 --</option>
+            </select>
+        </div>
+        <div class="card">
+            <div class="toolbar">
+                <button class="btn btn-outline" onclick="changeKey(-1)">Key -1</button>
+                <span class="key-display" id="keyOffset">Original</span>
+                <button class="btn btn-outline" onclick="changeKey(1)">Key +1</button>
+                <button class="btn btn-outline" onclick="resetKey()">Reset</button>
+            </div>
+            <div id="songTitleView" class="song-title-view"></div>
+            <div class="lyrics-sheet">
+                <div id="col1" class="column"></div>
+                <div id="col2" class="column"></div>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    // ⚠️ 保持空殼字串，GitHub 會自動幫我們替換
+    const SUPABASE_URL = "https://isuksiavjfjmjdegyuke.supabase.co"; 
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlzdWtzaWF2amZqbWpkZWd5dWtlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE4Njc5NDgsImV4cCI6MjA5NzQ0Mzk0OH0.-6Fa3farVzZ-eJ8_LUmpL_ABsuXK47M_V-lJY67LqSE"; 
+
+    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const scale = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const flatMap = { 'Db': 'C#', 'Eb': 'D#', 'Gb': 'F#', 'Ab': 'G#', 'Bb': 'A#' };
+    let currentOffset = 0, fetchedSongs = [];
+
+    window.onload = function() { fetchAllSongs(); };
+
+    async function fetchAllSongs() {
+        const { data, error } = await _supabase.from('songs').select('*').order('title', { ascending: true });
+        if (error) return console.error(error);
+        fetchedSongs = data;
+        const select = document.getElementById('songSelect');
+        select.innerHTML = '<option value="">-- 請選擇歌曲 --</option>';
+        data.forEach(song => {
+            const option = document.createElement('option');
+            option.value = song.id; option.innerText = song.title;
+            select.appendChild(option);
+        });
+    }
+
+    function loadSelectedSong() {
+        const selectedId = document.getElementById('songSelect').value;
+        if (!selectedId) return;
+        const song = fetchedSongs.find(s => s.id == selectedId);
+        if (song) { resetKey(); renderSong(song.title, song.lyrics); }
+    }
+
+    function changeKey(amount) {
+        currentOffset = (currentOffset + amount) % 12;
+        if (currentOffset > 6) currentOffset -= 12; if (currentOffset < -5) currentOffset += 12;
+        document.getElementById('keyOffset').innerText = currentOffset === 0 ? "Original" : `Key ${currentOffset > 0 ? '+' : ''}${currentOffset}`;
+        const selectedId = document.getElementById('songSelect').value;
+        const song = fetchedSongs.find(s => s.id == selectedId);
+        if (song) renderSong(song.title, song.lyrics);
+    }
+
+    function resetKey() { currentOffset = 0; document.getElementById('keyOffset').innerText = "Original"; }
+    function transposeChord(chord, offset) {
+        if (offset === 0) return chord;
+        return chord.replace(/([A-G][#b]?)/g, (match) => {
+            let note = match; if (flatMap[note]) note = flatMap[note];
+            let index = scale.indexOf(note); if (index === -1) return match;
+            return scale[(index + offset + 12) % 12];
+        });
+    }
+
+    function isChordLine(line) {
+        if (line.trim() === "") return false;
+        return /^[A-G][#b]?(m|maj|min|7|maj7|m7|sus\d?|add\d?|dim|aug)?(\/[A-G][#b]?)?(\s+[A-G][#b]?(m|maj|min|7|maj7|m7|sus\d?|add\d?|dim|aug)?(\/[A-G][#b]?)?)*$/.test(line.trim());
+    }
+
+    function renderSong(title, lyrics) {
+        document.getElementById('songTitleView').innerText = title;
+        const lines = lyrics.split('\n');
+        let col1 = "", col2 = "", currentColumn = 1;
+        const sectionRegex = /^\[(Verse\s*\d*|Chorus\s*\d*|Pre-Chorus|Bridge|Coda|Intro|Outro|Solo)\]$/i;
+
+        lines.forEach(line => {
+            let trimmed = line.trim();
+            if (trimmed.toLowerCase() === '[break]') { currentColumn = 2; return; }
+            let html = "";
+            if (sectionRegex.test(trimmed)) {
+                html = `<span class="section-header">${trimmed.match(/^\[(.*)\]$/)[1]}</span>\n`;
+            } else if (isChordLine(line)) {
+                html = `<span class="chord-line">${line.replace(/([A-G][#b]?[^\s]*)/g, match => transposeChord(match, currentOffset))}</span>`;
+            } else {
+                html = line === "" ? "\n" : `<span class="text-line">${line}</span>`;
+            }
+            if (currentColumn === 1) col1 += html; else col2 += html;
+        });
+        document.getElementById('col1').innerHTML = col1; document.getElementById('col2').innerHTML = col2;
+    }
+</script>
+</body>
+</html>
