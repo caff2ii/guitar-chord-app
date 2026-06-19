@@ -306,7 +306,12 @@
     function updateColumnCount() {
         const sheet = document.getElementById('lyricsSheet');
         if (!sheet) return;
-        const width = sheet.getBoundingClientRect().width;
+        // When container is scaled via CSS transform, getBoundingClientRect() returns
+        // a scaled width. Use the logical (unscaled) width by dividing out the
+        // current page scale so column decisions aren't affected by zoom.
+        const scaledWidth = sheet.getBoundingClientRect().width;
+        const scaleFactor = (typeof pageZoom === 'number' && pageZoom > 0) ? (pageZoom / 100) : 1;
+        const width = Math.round(scaledWidth / scaleFactor);
         let count = 1;
         if (width >= 1024) count = 3;
         else if (width >= 720) count = 2;
