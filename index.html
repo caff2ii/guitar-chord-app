@@ -59,8 +59,8 @@
         .btn-success:hover { background-color: #15803d; }
         .btn-outline { background-color: var(--outline-bg); color: var(--text-color); border: 1px solid var(--border-color); }
         .btn-outline:hover { background-color: var(--outline-hover); }
-        .floating-add-button { position: fixed; left: 16px; top: 50%; transform: translateY(-50%); z-index: 20; width: 48px; height: 48px; border-radius: 50%; font-size: 24px; padding: 0; display: flex; justify-content: center; align-items: center; box-shadow: 0 12px 30px rgba(0,0,0,0.18); }
-        .floating-edit-button { position: fixed; left: 16px; top: calc(50% + 68px); transform: translateY(-50%); z-index: 20; width: 44px; height: 44px; border-radius: 50%; font-size: 18px; padding: 0; display: flex; justify-content: center; align-items: center; box-shadow: 0 10px 24px rgba(0,0,0,0.12); }
+        .floating-add-button { position: fixed; right: 16px; left: auto; bottom: 88px; z-index: 20; width: 48px; height: 48px; border-radius: 50%; font-size: 24px; padding: 0; display: flex; justify-content: center; align-items: center; box-shadow: 0 12px 30px rgba(0,0,0,0.18); }
+        .floating-edit-button { position: fixed; right: 16px; left: auto; bottom: 16px; z-index: 20; width: 44px; height: 44px; border-radius: 50%; font-size: 18px; padding: 0; display: flex; justify-content: center; align-items: center; box-shadow: 0 10px 24px rgba(0,0,0,0.12); }
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.35); opacity: 0; visibility: hidden; transition: opacity 0.2s; z-index: 25; }
         .modal-overlay.active { opacity: 1; visibility: visible; }
         .modal-window { position: fixed; top: 12%; left: 50%; transform: translate(-50%, -20px); width: min(92%, 540px); background: var(--card-bg); border-radius: 18px; box-shadow: 0 28px 70px rgba(0,0,0,0.15); padding: 24px; opacity: 0; visibility: hidden; transition: opacity 0.2s, transform 0.2s; z-index: 30; }
@@ -92,7 +92,7 @@
 <button class="btn btn-primary floating-add-button" id="addSongButton" onclick="openNewSongModal()" aria-label="新增歌曲" title="新增歌曲">+</button>
 <button class="btn btn-outline floating-edit-button" id="editSongButton" onclick="openEditSongModal()" aria-label="編輯歌曲" title="編輯歌曲">✎</button>
 <div class="container">
-    <header><h1>結他Chord庫v0.1g</h1></header>
+    <header><h1>結他Chord庫v0.1h</h1></header>
     <div class="grid">
         <div id="songModalOverlay" class="modal-overlay" onclick="closeSongModal()"></div>
         <div id="songModal" class="modal-window" role="dialog" aria-modal="true" aria-labelledby="songModalTitle">
@@ -303,12 +303,23 @@
         if (capo !== null) capoInput.value = capo;
     }
 
+    function updateColumnCount() {
+        const sheet = document.getElementById('lyricsSheet');
+        if (!sheet) return;
+        const width = sheet.getBoundingClientRect().width;
+        let count = 1;
+        if (width >= 1024) count = 3;
+        else if (width >= 720) count = 2;
+        sheet.style.columnCount = count;
+    }
+
     function setZoom(value) {
         pageZoom = Math.max(50, Math.min(150, value));
         document.documentElement.style.setProperty('--page-scale', pageZoom / 100);
         const zoomLabel = document.getElementById('zoomLevel');
         if (zoomLabel) zoomLabel.innerText = pageZoom + '%';
         localStorage.setItem('pageZoom', pageZoom);
+        updateColumnCount();
     }
 
     function zoomIn() { setZoom(pageZoom + 10); }
@@ -334,9 +345,14 @@
         loadChordPreference();
         fetchAllSongs();
         renderSong();
+        updateColumnCount();
         const select = document.getElementById('songSelect');
         if (select) select.addEventListener('change', updateEditButtonState);
     };
+
+    window.addEventListener('resize', () => {
+        updateColumnCount();
+    });
 
     // 即時預覽
     document.getElementById('songTitle').addEventListener('input', () => renderSong());
@@ -466,30 +482,27 @@
         renderSong();
     }
 
-    function resetKey() { currentOffset = 0; document.getElementById('keyOffset').innerText = "Original"; renderSong(); }
+    function resetKey() { currentOffset = 0; document.getElementById('keyOffset').innerText = "Original"; updateCapoFromKeys(); renderSong(); }
     
     function shouldUseSharps() {
         const songKey = document.getElementById('songKey')?.value.trim();
         const originalKey = document.getElementById('originalKey')?.value.trim();
-        let baseKey = songKey || originalKey || 'C';
+        const baseKey = songKey || originalKey || 'C';
         const normalized = normalizeKeyInput(baseKey) || 'C';
-        let index = scale.indexOf(normalized);
-        if (index === -1) return true;
-        index = (index + currentOffset + 12) % 12;
-        const targetRoot = scale[index];
         const flatKeys = ['F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'Cb'];
+        const baseIndex = scale.indexOf(normalized);
+        if (baseIndex === -1) return true;
+        const targetRoot = scale[(baseIndex + currentOffset + 12) % 12];
         return !flatKeys.includes(targetRoot);
     }
 
     function transposeChord(chord, offset) {
-        if (offset === 0) return chord;
         const useSharps = shouldUseSharps();
         return chord.replace(/([A-G][#b]?)/g, (match) => {
-            let note = match;
-            if (flatMap[note]) note = flatMap[note];
-            let index = scale.indexOf(note);
+            const normalizedNote = flatMap[match] || match;
+            const index = scale.indexOf(normalizedNote);
             if (index === -1) return match;
-            const transposed = scale[(index + offset + 12) % 12];
+            const transposed = offset === 0 ? scale[index] : scale[(index + offset + 12) % 12];
             return useSharps ? transposed : outputFlatMap[transposed] || transposed;
         });
     }
@@ -572,6 +585,7 @@
             html += '</div>';
             return html;
         }).join('');
+        updateColumnCount();
     }
 </script>
 </body>
