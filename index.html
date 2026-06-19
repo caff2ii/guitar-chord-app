@@ -93,7 +93,7 @@
 <button class="btn btn-primary floating-add-button" id="addSongButton" onclick="openNewSongModal()" aria-label="新增歌曲" title="新增歌曲">+</button>
 <button class="btn btn-outline floating-edit-button" id="editSongButton" onclick="openEditSongModal()" aria-label="編輯歌曲" title="編輯歌曲">✎</button>
 <div class="container">
-    <header><h1>結他Chord庫v0.2c</h1></header>
+    <header><h1>結他Chord庫v0.2d</h1></header>
     <div class="grid">
         <div id="songModalOverlay" class="modal-overlay" onclick="closeSongModal()"></div>
         <div id="songModal" class="modal-window" role="dialog" aria-modal="true" aria-labelledby="songModalTitle">
@@ -194,6 +194,7 @@
         if (originalKeyInput) originalKeyInput.value = '';
         if (songKeyInput) songKeyInput.value = '';
         if (capoInput) capoInput.value = '';
+        capoVirtual = null;
         renderSong();
         showSongModal();
     }
@@ -216,7 +217,12 @@
         if (lyricsInput) lyricsInput.value = song.lyrics || '';
         if (originalKeyInput) originalKeyInput.value = song.original_key || '';
         if (songKeyInput) songKeyInput.value = song.song_key || '';
-        if (capoInput) capoInput.value = song.capo || '';
+        if (capoInput) {
+            const capoValue = song.capo !== undefined && song.capo !== null ? String(song.capo) : '';
+            capoInput.value = capoValue;
+            const parsedCapo = parseInt(capoValue, 10);
+            capoVirtual = Number.isNaN(parsedCapo) ? null : parsedCapo;
+        }
         renderSong();
         showSongModal();
     }
@@ -424,8 +430,10 @@
             if (originalKeyInput) originalKeyInput.value = song.original_key || '';
             if (songKeyInput) songKeyInput.value = song.song_key || '';
             if (capoInput) {
-                capoInput.value = song.capo || '';
-                capoVirtual = (typeof song.capo === 'number') ? song.capo : (song.capo ? parseInt(song.capo, 10) : null);
+                const capoValue = song.capo !== undefined && song.capo !== null ? String(song.capo) : '';
+                capoInput.value = capoValue;
+                const parsedCapo = parseInt(capoValue, 10);
+                capoVirtual = Number.isNaN(parsedCapo) ? null : parsedCapo;
             }
             resetKey(); renderSong();
         }
@@ -509,8 +517,10 @@
             if (originalKey && songKey) {
                 const baseCapo = calculateCapo(originalKey, songKey) || 0;
                 // When currentOffset increases (user presses +), songKey notes go up,
-                // so capo must decrease: newCapo = baseCapo - currentOffset
-                const newCapo = ((baseCapo - currentOffset) % 12 + 12) % 12; // 0..11
+                // so capo must decrease: newCapo = baseCapo - currentOffset.
+                // Do not wrap around with mod 12 here, because negative capo
+                // means the visible capo should clamp at 0 rather than jump to 11.
+                const newCapo = baseCapo - currentOffset;
                 capoVirtual = newCapo;
                 capoInput.value = Math.max(0, Math.min(12, newCapo));
             } else {
