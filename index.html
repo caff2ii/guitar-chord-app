@@ -51,7 +51,7 @@
         .toolbar-right { justify-content: flex-end; }
         .toolbar-right select { min-width: 220px; max-width: 260px; }
         .song-meta { font-size: 14px; color: var(--instruction-color); margin-bottom: 12px; }
-        .modal-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+        .modal-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
         .modal-grid .form-group { margin-bottom: 0; }
         .btn { background-color: var(--primary-color); color: white; border: none; padding: 10px 14px; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 14px; transition: background-color 0.2s, transform 0.2s; }
         .btn:hover { background-color: var(--primary-hover); transform: translateY(-1px); }
@@ -76,7 +76,7 @@
         @media (min-width: 768px) { .lyrics-sheet { column-count: 2; } }
         @media (min-width: 1024px) { .lyrics-sheet { column-count: 3; } }
         .lyrics-sheet.hide-chords .chord-line { display: none; }
-        .lyrics-section { display: block; break-inside: avoid; -webkit-column-break-inside: avoid; page-break-inside: avoid; margin-bottom: 20px; white-space: pre-wrap; }
+        .lyrics-section { display: block; break-inside: avoid; -webkit-column-break-inside: avoid; page-break-inside: avoid; margin-bottom: 14px; white-space: pre-wrap; }
         .column { font-family: 'Courier New', Courier, monospace; font-size: 16px; line-height: 1.25; white-space: pre-wrap; }
         .chord-line { color: var(--chord-color); font-weight: bold; margin-bottom: 0; display: block; white-space: pre; }
         /* make lyric lines that immediately follow a chord line sit closer */
@@ -92,7 +92,7 @@
 <button class="btn btn-primary floating-add-button" id="addSongButton" onclick="openNewSongModal()" aria-label="新增歌曲" title="新增歌曲">+</button>
 <button class="btn btn-outline floating-edit-button" id="editSongButton" onclick="openEditSongModal()" aria-label="編輯歌曲" title="編輯歌曲">✎</button>
 <div class="container">
-    <header><h1>結他Chord庫v0.1f</h1></header>
+    <header><h1>結他Chord庫v0.1g</h1></header>
     <div class="grid">
         <div id="songModalOverlay" class="modal-overlay" onclick="closeSongModal()"></div>
         <div id="songModal" class="modal-window" role="dialog" aria-modal="true" aria-labelledby="songModalTitle">
@@ -108,6 +108,10 @@
                 <div class="form-group">
                     <label for="originalKey">原 key (Original Key)</label>
                     <input type="text" id="originalKey" placeholder="例如 C、G、Am">
+                </div>
+                <div class="form-group">
+                    <label for="songKey">歌詞 key (Song Key)</label>
+                    <input type="text" id="songKey" placeholder="例如 C、G、Am">
                 </div>
                 <div class="form-group">
                     <label for="capo">Capo</label>
@@ -178,11 +182,13 @@
         const titleInput = document.getElementById('songTitle');
         const lyricsInput = document.getElementById('rawLyrics');
         const originalKeyInput = document.getElementById('originalKey');
+        const songKeyInput = document.getElementById('songKey');
         const capoInput = document.getElementById('capo');
         if (select) select.value = '';
         if (titleInput) titleInput.value = '';
         if (lyricsInput) lyricsInput.value = '';
         if (originalKeyInput) originalKeyInput.value = '';
+        if (songKeyInput) songKeyInput.value = '';
         if (capoInput) capoInput.value = '';
         renderSong();
         showSongModal();
@@ -200,10 +206,12 @@
         const titleInput = document.getElementById('songTitle');
         const lyricsInput = document.getElementById('rawLyrics');
         const originalKeyInput = document.getElementById('originalKey');
+        const songKeyInput = document.getElementById('songKey');
         const capoInput = document.getElementById('capo');
         if (titleInput) titleInput.value = song.title || '';
         if (lyricsInput) lyricsInput.value = song.lyrics || '';
         if (originalKeyInput) originalKeyInput.value = song.original_key || '';
+        if (songKeyInput) songKeyInput.value = song.song_key || '';
         if (capoInput) capoInput.value = song.capo || '';
         renderSong();
         showSongModal();
@@ -264,6 +272,37 @@
         btn.title = chordsVisible ? '隱藏和弦' : '顯示和弦';
     }
 
+    function normalizeKeyInput(key) {
+        const match = key.trim().match(/^([A-G])([#b])?/i);
+        if (!match) return null;
+        const letter = match[1].toUpperCase();
+        const accidental = match[2] ? (match[2] === 'b' ? 'b' : '#') : '';
+        const note = letter + accidental;
+        return flatMap[note] || note;
+    }
+
+    function calculateCapo(originalKey, songKey) {
+        const originalRoot = normalizeKeyInput(originalKey);
+        const songRoot = normalizeKeyInput(songKey);
+        if (!originalRoot || !songRoot) return null;
+        const originalIndex = scale.indexOf(originalRoot);
+        const songIndex = scale.indexOf(songRoot);
+        if (originalIndex === -1 || songIndex === -1) return null;
+        return (songIndex - originalIndex + 12) % 12;
+    }
+
+    function updateCapoFromKeys() {
+        const originalKeyInput = document.getElementById('originalKey');
+        const songKeyInput = document.getElementById('songKey');
+        const capoInput = document.getElementById('capo');
+        if (!originalKeyInput || !songKeyInput || !capoInput) return;
+        const originalKey = originalKeyInput.value.trim();
+        const songKey = songKeyInput.value.trim();
+        if (!originalKey || !songKey) return;
+        const capo = calculateCapo(originalKey, songKey);
+        if (capo !== null) capoInput.value = capo;
+    }
+
     function setZoom(value) {
         pageZoom = Math.max(50, Math.min(150, value));
         document.documentElement.style.setProperty('--page-scale', pageZoom / 100);
@@ -301,7 +340,14 @@
 
     // 即時預覽
     document.getElementById('songTitle').addEventListener('input', () => renderSong());
-    document.getElementById('originalKey').addEventListener('input', () => renderSong());
+    document.getElementById('originalKey').addEventListener('input', () => {
+        updateCapoFromKeys();
+        renderSong();
+    });
+    document.getElementById('songKey').addEventListener('input', () => {
+        updateCapoFromKeys();
+        renderSong();
+    });
     document.getElementById('capo').addEventListener('input', () => renderSong());
     document.getElementById('rawLyrics').addEventListener('input', () => renderSong());
 
@@ -326,11 +372,13 @@
         const titleInput = document.getElementById('songTitle');
         const lyricsInput = document.getElementById('rawLyrics');
         const originalKeyInput = document.getElementById('originalKey');
+        const songKeyInput = document.getElementById('songKey');
         const capoInput = document.getElementById('capo');
         if (!selectedId) {
             if (titleInput) titleInput.value = "";
             if (lyricsInput) lyricsInput.value = "";
             if (originalKeyInput) originalKeyInput.value = "";
+            if (songKeyInput) songKeyInput.value = "";
             if (capoInput) capoInput.value = "";
             resetKey(); renderSong();
             return;
@@ -340,6 +388,7 @@
             if (titleInput) titleInput.value = song.title || '';
             if (lyricsInput) lyricsInput.value = song.lyrics || '';
             if (originalKeyInput) originalKeyInput.value = song.original_key || '';
+            if (songKeyInput) songKeyInput.value = song.song_key || '';
             if (capoInput) capoInput.value = song.capo || '';
             resetKey(); renderSong();
         }
@@ -350,6 +399,7 @@
         const title = document.getElementById('songTitle').value.trim();
         const lyrics = document.getElementById('rawLyrics').value;
         const originalKey = document.getElementById('originalKey').value.trim();
+        const songKey = document.getElementById('songKey').value.trim();
         const capo = parseInt(document.getElementById('capo').value, 10) || 0;
         const selectedId = document.getElementById('songSelect').value;
         const statusMsg = document.getElementById('statusMsg');
@@ -358,7 +408,7 @@
 
         statusMsg.innerText = "正在儲存...";
         let error, newId = null;
-        const songPayload = { title, lyrics, original_key: originalKey || null, capo };
+        const songPayload = { title, lyrics, original_key: originalKey || null, song_key: songKey || null, capo };
 
         if (selectedId) {
             // update existing song and fetch updated rows (handle array or single)
@@ -395,24 +445,52 @@
         }
     }
 
+    function adjustCapo(amount) {
+        const capoInput = document.getElementById('capo');
+        if (!capoInput) return;
+        const currentCapo = parseInt(capoInput.value, 10);
+        if (Number.isNaN(currentCapo)) {
+            if (amount > 0) capoInput.value = amount;
+            return;
+        }
+        const nextCapo = Math.max(0, Math.min(12, currentCapo + amount));
+        capoInput.value = nextCapo;
+    }
+
     function changeKey(amount) {
         currentOffset = (currentOffset + amount) % 12;
-        if (currentOffset > 6) currentOffset -= 12; if (currentOffset < -5) currentOffset += 12;
+        if (currentOffset > 6) currentOffset -= 12;
+        if (currentOffset < -5) currentOffset += 12;
+        adjustCapo(amount);
         document.getElementById('keyOffset').innerText = currentOffset === 0 ? "Original" : `Key ${currentOffset > 0 ? '+' : ''}${currentOffset}`;
         renderSong();
     }
 
     function resetKey() { currentOffset = 0; document.getElementById('keyOffset').innerText = "Original"; renderSong(); }
     
+    function shouldUseSharps() {
+        const songKey = document.getElementById('songKey')?.value.trim();
+        const originalKey = document.getElementById('originalKey')?.value.trim();
+        let baseKey = songKey || originalKey || 'C';
+        const normalized = normalizeKeyInput(baseKey) || 'C';
+        let index = scale.indexOf(normalized);
+        if (index === -1) return true;
+        index = (index + currentOffset + 12) % 12;
+        const targetRoot = scale[index];
+        const flatKeys = ['F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'Cb'];
+        return !flatKeys.includes(targetRoot);
+    }
+
     function transposeChord(chord, offset) {
         if (offset === 0) return chord;
+        const useSharps = shouldUseSharps();
         return chord.replace(/([A-G][#b]?)/g, (match) => {
             let note = match;
             if (flatMap[note]) note = flatMap[note];
             let index = scale.indexOf(note);
             if (index === -1) return match;
             const transposed = scale[(index + offset + 12) % 12];
-            return outputFlatMap[transposed] || transposed;
+            return useSharps ? transposed : outputFlatMap[transposed] || transposed;
         });
     }
 
@@ -425,6 +503,7 @@
         const title = document.getElementById('songTitle').value || "";
         const lyrics = document.getElementById('rawLyrics').value;
         const originalKey = document.getElementById('originalKey').value || '';
+        const songKey = document.getElementById('songKey').value || '';
         const capo = document.getElementById('capo').value || '';
         const titleView = document.getElementById('songTitleView');
         const detailsView = document.getElementById('songDetailsView');
@@ -440,11 +519,15 @@
         if (detailsView) {
             const details = [];
             if (originalKey) details.push(`原Key: ${originalKey}`);
+            if (songKey) details.push(`歌詞Key: ${songKey}`);
             if (capo !== '' && capo !== '0') details.push(`Capo: ${capo}`);
             detailsView.innerText = details.join(' · ');
         }
 
         const lines = lyrics.split('\n');
+        while (lines.length && lines[0].trim() === '') {
+            lines.shift();
+        }
         const sections = [];
         let currentSection = { header: '', lines: [] };
         const sectionRegex = /^\[(Verse\s*\d*|Chorus\s*\d*|Pre-Chorus|Bridge|Coda|Intro|Outro|Solo)\]$/i;
