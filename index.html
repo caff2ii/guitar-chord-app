@@ -3,20 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Guitar Chord Transposer</title>
+    <title>Guitar Chord Transposer (Cloud Editor)</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        :root { --primary-color: #2563eb; --primary-hover: #1d4ed8; --bg-color: #f8fafc; --card-bg: #ffffff; --text-color: #1e293b; --chord-color: #df5334; --section-bg: #334155; }
+        :root { 
+            --primary-color: #2563eb; 
+            --primary-hover: #1d4ed8; 
+            --bg-color: #f8fafc; 
+            --card-bg: #ffffff; 
+            --text-color: #1e293b; 
+            --chord-color: #df5334; 
+            --section-bg: #334155; 
+            --success-color: #16a34a;
+        }
         body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 20px; }
-        .container { max-width: 1200px; margin: 0 auto; }
+        .container { max-width: 1400px; margin: 0 auto; }
         header { text-align: center; margin-bottom: 24px; }
         .grid { display: grid; grid-template-columns: 1fr; gap: 24px; }
-        @media (min-width: 992px) { .grid { grid-template-columns: 350px 1fr; } }
+        @media (min-width: 992px) { .grid { grid-template-columns: 450px 1fr; } }
         .card { background: var(--card-bg); padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); height: fit-content; }
+        .form-group { margin-bottom: 16px; }
         label { display: block; font-weight: 600; margin-bottom: 6px; }
-        select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; }
+        input[type="text"], textarea, select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
+        textarea { font-family: 'Courier New', Courier, monospace; height: 350px; resize: vertical; }
         .toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid #e2e8f0; }
-        .btn { background-color: var(--primary-color); color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 500; }
+        .btn { background-color: var(--primary-color); color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 500; font-size: 14px; }
+        .btn:hover { background-color: var(--primary-hover); }
+        .btn-success { background-color: var(--success-color); width: 100%; margin-top: 10px; }
+        .btn-success:hover { background-color: #15803d; }
         .btn-outline { background-color: transparent; color: var(--text-color); border: 1px solid #cbd5e1; }
         .key-display { font-weight: 600; min-width: 80px; text-align: center; }
         .song-title-view { font-size: 24px; font-weight: bold; margin-bottom: 20px; }
@@ -26,6 +40,8 @@
         .chord-line { color: var(--chord-color); font-weight: bold; margin-bottom: -4px; display: block; }
         .text-line { display: block; margin-bottom: 8px; }
         .section-header { display: inline-block; background-color: var(--section-bg); color: white; padding: 2px 10px; border-radius: 4px; font-weight: bold; font-size: 13px; margin-top: 14px; margin-bottom: 6px; }
+        .instruction { font-size: 12px; color: #64748b; margin-top: 4px; line-height: 1.4; }
+        #statusMsg { font-size: 12px; color: var(--success-color); font-weight: bold; margin-left: auto; }
     </style>
 </head>
 <body>
@@ -33,17 +49,35 @@
     <header><h1>Guitar Chord Transposer</h1></header>
     <div class="grid">
         <div class="card">
-            <label for="songSelect">選擇雲端歌曲 (Select Song)</label>
-            <select id="songSelect" onchange="loadSelectedSong()">
-                <option value="">-- 請選擇歌曲 --</option>
-            </select>
+            <div class="form-group">
+                <label for="songSelect">雲端歌曲列表 (Load Song)</label>
+                <select id="songSelect" onchange="loadSelectedSong()">
+                    <option value="">-- ✨ 建立新歌曲 --</option>
+                </select>
+            </div>
+            <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+            <div class="form-group">
+                <label for="songTitle">歌名 (Song Title)</label>
+                <input type="text" id="songTitle" placeholder="請輸入歌名...">
+            </div>
+            <div class="form-group">
+                <label for="rawLyrics">樂譜與歌詞內容</label>
+                <textarea id="rawLyrics" placeholder="[Intro]&#10;C  G  Am  F&#10;&#10;[Verse 1]&#10;C        G&#10;今天我 寒夜裡看雪飄過&#10;&#10;[break]&#10;&#10;[Chorus]&#10;Am       F&#10;原諒我這一生不羈放縱愛自由"></textarea>
+                <div class="instruction">
+                    * 結構標籤請用中括號，如：[Verse 1], [Chorus], [Bridge], [Coda]<br>
+                    * 輸入單獨一行的 <strong>[break]</strong> 即可將之後的內容切換到右邊第二欄。
+                </div>
+            </div>
+            <button class="btn btn-success" onclick="saveSongToCloud()">💾 儲存到雲端 Database</button>
         </div>
+
         <div class="card">
             <div class="toolbar">
                 <button class="btn btn-outline" onclick="changeKey(-1)">Key -1</button>
                 <span class="key-display" id="keyOffset">Original</span>
                 <button class="btn btn-outline" onclick="changeKey(1)">Key +1</button>
                 <button class="btn btn-outline" onclick="resetKey()">Reset</button>
+                <span id="statusMsg"></span>
             </div>
             <div id="songTitleView" class="song-title-view"></div>
             <div class="lyrics-sheet">
@@ -54,7 +88,7 @@
     </div>
 </div>
 <script>
-    // ⚠️ 保持空殼字串，GitHub 會自動幫我們替換
+    // 保持空殼，GitHub Actions 會自動注入密碼
     const SUPABASE_URL = "__SUPABASE_URL__"; 
     const SUPABASE_ANON_KEY = "__SUPABASE_ANON_KEY__"; 
 
@@ -63,38 +97,84 @@
     const flatMap = { 'Db': 'C#', 'Eb': 'D#', 'Gb': 'F#', 'Ab': 'G#', 'Bb': 'A#' };
     let currentOffset = 0, fetchedSongs = [];
 
-    window.onload = function() { fetchAllSongs(); };
+    window.onload = function() { fetchAllSongs(); renderSong(); };
+
+    // 即時預覽
+    document.getElementById('songTitle').addEventListener('input', () => renderSong());
+    document.getElementById('rawLyrics').addEventListener('input', () => renderSong());
 
     async function fetchAllSongs() {
         const { data, error } = await _supabase.from('songs').select('*').order('title', { ascending: true });
         if (error) return console.error(error);
         fetchedSongs = data;
         const select = document.getElementById('songSelect');
-        select.innerHTML = '<option value="">-- 請選擇歌曲 --</option>';
+        const currentVal = select.value;
+        select.innerHTML = '<option value="">-- ✨ 建立新歌曲 --</option>';
         data.forEach(song => {
             const option = document.createElement('option');
             option.value = song.id; option.innerText = song.title;
             select.appendChild(option);
         });
+        if (currentVal) select.value = currentVal;
     }
 
     function loadSelectedSong() {
         const selectedId = document.getElementById('songSelect').value;
-        if (!selectedId) return;
+        if (!selectedId) {
+            document.getElementById('songTitle').value = "";
+            document.getElementById('rawLyrics').value = "";
+            resetKey(); renderSong();
+            return;
+        }
         const song = fetchedSongs.find(s => s.id == selectedId);
-        if (song) { resetKey(); renderSong(song.title, song.lyrics); }
+        if (song) {
+            document.getElementById('songTitle').value = song.title;
+            document.getElementById('rawLyrics').value = song.lyrics;
+            resetKey(); renderSong();
+        }
+    }
+
+    // 新增或更新歌曲到 Supabase
+    async function saveSongToCloud() {
+        const title = document.getElementById('songTitle').value.trim();
+        const lyrics = document.getElementById('rawLyrics').value;
+        const selectedId = document.getElementById('songSelect').value;
+        const statusMsg = document.getElementById('statusMsg');
+
+        if (!title) return alert('請先輸入歌名！');
+
+        statusMsg.innerText = "正在儲存...";
+        let error;
+
+        if (selectedId) {
+            // 更新舊歌 (這裡需要 RLS 開放 UPDATE 權限，為安全起見，我們暫時用網頁新增。如果想直接在網頁改舊歌，請在 Supabase 額外加上 UPDATE 的政策)
+            const result = await _supabase.from('songs').update({ title, lyrics }).eq('id', selectedId);
+            error = result.error;
+        } else {
+            // 新增歌
+            const result = await _supabase.from('songs').insert([{ title, lyrics }]);
+            error = result.error;
+        }
+
+        if (error) {
+            statusMsg.innerText = "儲存失敗 ❌";
+            alert("錯誤: " + error.message);
+        } else {
+            statusMsg.innerText = "雲端儲存成功！ ✔";
+            await fetchAllSongs();
+            setTimeout(() => statusMsg.innerText = "", 3000);
+        }
     }
 
     function changeKey(amount) {
         currentOffset = (currentOffset + amount) % 12;
         if (currentOffset > 6) currentOffset -= 12; if (currentOffset < -5) currentOffset += 12;
         document.getElementById('keyOffset').innerText = currentOffset === 0 ? "Original" : `Key ${currentOffset > 0 ? '+' : ''}${currentOffset}`;
-        const selectedId = document.getElementById('songSelect').value;
-        const song = fetchedSongs.find(s => s.id == selectedId);
-        if (song) renderSong(song.title, song.lyrics);
+        renderSong();
     }
 
-    function resetKey() { currentOffset = 0; document.getElementById('keyOffset').innerText = "Original"; }
+    function resetKey() { currentOffset = 0; document.getElementById('keyOffset').innerText = "Original"; renderSong(); }
+    
     function transposeChord(chord, offset) {
         if (offset === 0) return chord;
         return chord.replace(/([A-G][#b]?)/g, (match) => {
@@ -109,8 +189,11 @@
         return /^[A-G][#b]?(m|maj|min|7|maj7|m7|sus\d?|add\d?|dim|aug)?(\/[A-G][#b]?)?(\s+[A-G][#b]?(m|maj|min|7|maj7|m7|sus\d?|add\d?|dim|aug)?(\/[A-G][#b]?)?)*$/.test(line.trim());
     }
 
-    function renderSong(title, lyrics) {
+    function renderSong() {
+        const title = document.getElementById('songTitle').value || "未命名歌曲";
+        const lyrics = document.getElementById('rawLyrics').value;
         document.getElementById('songTitleView').innerText = title;
+        
         const lines = lyrics.split('\n');
         let col1 = "", col2 = "", currentColumn = 1;
         const sectionRegex = /^\[(Verse\s*\d*|Chorus\s*\d*|Pre-Chorus|Bridge|Coda|Intro|Outro|Solo)\]$/i;
