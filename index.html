@@ -434,7 +434,7 @@
         fetchedSongs = data;
         const select = document.getElementById('songSelect');
         const currentVal = select.value;
-        select.innerHTML = '<option value="">-- ✨ 選擇歌曲 --</option>';
+        select.innerHTML = '<option value="">選擇歌曲</option>';
         data.forEach(song => {
             const option = document.createElement('option');
             option.value = song.id; option.innerText = song.title;
