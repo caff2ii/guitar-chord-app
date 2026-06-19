@@ -93,7 +93,7 @@
 <button class="btn btn-primary floating-add-button" id="addSongButton" onclick="openNewSongModal()" aria-label="新增歌曲" title="新增歌曲">+</button>
 <button class="btn btn-outline floating-edit-button" id="editSongButton" onclick="openEditSongModal()" aria-label="編輯歌曲" title="編輯歌曲">✎</button>
 <div class="container">
-    <header><h1>結他Chord庫v0.2b</h1></header>
+    <header><h1>結他Chord庫v0.2c</h1></header>
     <div class="grid">
         <div id="songModalOverlay" class="modal-overlay" onclick="closeSongModal()"></div>
         <div id="songModal" class="modal-window" role="dialog" aria-modal="true" aria-labelledby="songModalTitle">
@@ -292,9 +292,9 @@
         const originalIndex = scale.indexOf(originalRoot);
         const songIndex = scale.indexOf(songRoot);
         if (originalIndex === -1 || songIndex === -1) return null;
-        // capo = number of semitones to raise the chord shapes (songKey)
-        // so they sound as the originalKey: capo = original - song
-        return (originalIndex - songIndex + 12) % 12;
+        // Signed capo difference: originalKey - songKey.
+        // This preserves negative direction for cases where the displayed chart is above the original.
+        return originalIndex - songIndex;
     }
 
     function updateCapoFromKeys() {
@@ -308,19 +308,19 @@
         const capo = calculateCapo(originalKey, songKey);
         if (capo !== null) {
             capoVirtual = capo;
-            capoInput.value = capo;
+            capoInput.value = Math.max(0, Math.min(12, capo));
         }
     }
 
     function updateColumnCount() {
         const sheet = document.getElementById('lyricsSheet');
         if (!sheet) return;
-        // Use the actual element width. We no longer scale the container via CSS
-        // transform; zoom changes font size only so column decisions use real width.
+        // Use the actual element width. Zoom changes only the font size,
+        // so column decisions are based on the available sheet width.
         const width = Math.round(sheet.getBoundingClientRect().width);
         let count = 1;
-        if (width >= 1024) count = 3;
-        else if (width >= 720) count = 2;
+        if (width >= 780) count = 3;
+        else if (width >= 520) count = 2;
         sheet.style.columnCount = count;
     }
 
