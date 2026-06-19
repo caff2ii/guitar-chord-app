@@ -47,11 +47,13 @@
         input[type="text"], textarea, select { width: 100%; padding: 10px; border: 1px solid var(--input-border); border-radius: 6px; font-size: 14px; box-sizing: border-box; background-color: var(--card-bg); color: var(--text-color); }
         textarea { font-family: 'Courier New', Courier, monospace; height: 350px; resize: vertical; }
         .toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border-color); }
-        .toolbar-left, .toolbar-right { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+        .toolbar-left, .toolbar-right { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
         .toolbar-right { justify-content: flex-end; }
-        .toolbar-right label { font-size: 14px; font-weight: 600; }
         .toolbar-right select { min-width: 220px; max-width: 260px; }
-        .btn { background-color: var(--primary-color); color: white; border: none; padding: 10px 16px; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 14px; transition: background-color 0.2s, transform 0.2s; }
+        .song-meta { font-size: 14px; color: var(--instruction-color); margin-bottom: 12px; }
+        .modal-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+        .modal-grid .form-group { margin-bottom: 0; }
+        .btn { background-color: var(--primary-color); color: white; border: none; padding: 10px 14px; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 14px; transition: background-color 0.2s, transform 0.2s; }
         .btn:hover { background-color: var(--primary-hover); transform: translateY(-1px); }
         .btn-success { background-color: var(--success-color); width: auto; margin-top: 0; }
         .btn-success:hover { background-color: #15803d; }
@@ -90,7 +92,7 @@
 <button class="btn btn-primary floating-add-button" id="addSongButton" onclick="openNewSongModal()" aria-label="新增歌曲" title="新增歌曲">+</button>
 <button class="btn btn-outline floating-edit-button" id="editSongButton" onclick="openEditSongModal()" aria-label="編輯歌曲" title="編輯歌曲">✎</button>
 <div class="container">
-    <header><h1>結他Chord庫v0.1e</h1></header>
+    <header><h1>結他Chord庫v0.1f</h1></header>
     <div class="grid">
         <div id="songModalOverlay" class="modal-overlay" onclick="closeSongModal()"></div>
         <div id="songModal" class="modal-window" role="dialog" aria-modal="true" aria-labelledby="songModalTitle">
@@ -101,6 +103,16 @@
             <div class="form-group">
                 <label for="songTitle">歌名 (Song Title)</label>
                 <input type="text" id="songTitle" placeholder="請輸入歌名...">
+            </div>
+            <div class="modal-grid">
+                <div class="form-group">
+                    <label for="originalKey">原 key (Original Key)</label>
+                    <input type="text" id="originalKey" placeholder="例如 C、G、Am">
+                </div>
+                <div class="form-group">
+                    <label for="capo">Capo</label>
+                    <input type="number" id="capo" min="0" max="12" placeholder="0">
+                </div>
             </div>
             <div class="form-group">
                 <label for="rawLyrics">樂譜與歌詞內容</label>
@@ -118,19 +130,18 @@
         <div class="card">
             <div class="toolbar">
                 <div class="toolbar-left">
-                    <button class="btn btn-outline" onclick="changeKey(-1)">Key -1</button>
+                    <button class="btn btn-outline" onclick="changeKey(-1)">-1</button>
                     <span class="key-display" id="keyOffset">Original</span>
-                    <button class="btn btn-outline" onclick="changeKey(1)">Key +1</button>
-                    <button class="btn btn-outline" onclick="resetKey()">Reset</button>
+                    <button class="btn btn-outline" onclick="changeKey(1)">+1</button>
+                    <button class="btn btn-outline" onclick="resetKey()">↺</button>
                     <button class="btn btn-outline" onclick="toggleChords()" id="toggleChordsBtn" title="顯示/隱藏和弦">🎸</button>
-                    <button class="btn btn-outline" onclick="zoomOut()">Zoom -</button>
+                    <button class="btn btn-outline" onclick="zoomOut()">-</button>
                     <span class="zoom-display" id="zoomLevel">100%</span>
-                    <button class="btn btn-outline" onclick="zoomIn()">Zoom +</button>
-                    <button class="btn btn-outline" onclick="resetZoom()">Reset Zoom</button>
+                    <button class="btn btn-outline" onclick="zoomIn()">+</button>
+                    <button class="btn btn-outline" onclick="resetZoom()">↺</button>
                     <button class="btn btn-outline" id="themeToggle" onclick="toggleDarkMode()" title="Toggle Dark Mode">🌙</button>
                 </div>
                 <div class="toolbar-right">
-                    <label for="songSelect">歌單</label>
                     <select id="songSelect" onchange="loadSelectedSong()">
                         <option value="">-- ✨ 選擇歌曲 --</option>
                     </select>
@@ -138,6 +149,7 @@
                 <span id="statusMsg"></span>
             </div>
             <div id="songTitleView" class="song-title-view"></div>
+            <div id="songDetailsView" class="song-meta"></div>
             <div class="lyrics-sheet" id="lyricsSheet"></div>
         </div>
     </div>
@@ -165,9 +177,13 @@
         const select = document.getElementById('songSelect');
         const titleInput = document.getElementById('songTitle');
         const lyricsInput = document.getElementById('rawLyrics');
+        const originalKeyInput = document.getElementById('originalKey');
+        const capoInput = document.getElementById('capo');
         if (select) select.value = '';
         if (titleInput) titleInput.value = '';
         if (lyricsInput) lyricsInput.value = '';
+        if (originalKeyInput) originalKeyInput.value = '';
+        if (capoInput) capoInput.value = '';
         renderSong();
         showSongModal();
     }
@@ -183,8 +199,12 @@
         if (!song) return alert('未能找到所選歌曲');
         const titleInput = document.getElementById('songTitle');
         const lyricsInput = document.getElementById('rawLyrics');
+        const originalKeyInput = document.getElementById('originalKey');
+        const capoInput = document.getElementById('capo');
         if (titleInput) titleInput.value = song.title || '';
         if (lyricsInput) lyricsInput.value = song.lyrics || '';
+        if (originalKeyInput) originalKeyInput.value = song.original_key || '';
+        if (capoInput) capoInput.value = song.capo || '';
         renderSong();
         showSongModal();
     }
@@ -281,6 +301,8 @@
 
     // 即時預覽
     document.getElementById('songTitle').addEventListener('input', () => renderSong());
+    document.getElementById('originalKey').addEventListener('input', () => renderSong());
+    document.getElementById('capo').addEventListener('input', () => renderSong());
     document.getElementById('rawLyrics').addEventListener('input', () => renderSong());
 
     async function fetchAllSongs() {
@@ -301,16 +323,24 @@
 
     function loadSelectedSong() {
         const selectedId = document.getElementById('songSelect').value;
+        const titleInput = document.getElementById('songTitle');
+        const lyricsInput = document.getElementById('rawLyrics');
+        const originalKeyInput = document.getElementById('originalKey');
+        const capoInput = document.getElementById('capo');
         if (!selectedId) {
-            document.getElementById('songTitle').value = "";
-            document.getElementById('rawLyrics').value = "";
+            if (titleInput) titleInput.value = "";
+            if (lyricsInput) lyricsInput.value = "";
+            if (originalKeyInput) originalKeyInput.value = "";
+            if (capoInput) capoInput.value = "";
             resetKey(); renderSong();
             return;
         }
         const song = fetchedSongs.find(s => s.id == selectedId);
         if (song) {
-            document.getElementById('songTitle').value = song.title;
-            document.getElementById('rawLyrics').value = song.lyrics;
+            if (titleInput) titleInput.value = song.title || '';
+            if (lyricsInput) lyricsInput.value = song.lyrics || '';
+            if (originalKeyInput) originalKeyInput.value = song.original_key || '';
+            if (capoInput) capoInput.value = song.capo || '';
             resetKey(); renderSong();
         }
     }
@@ -319,6 +349,8 @@
     async function saveSongToCloud() {
         const title = document.getElementById('songTitle').value.trim();
         const lyrics = document.getElementById('rawLyrics').value;
+        const originalKey = document.getElementById('originalKey').value.trim();
+        const capo = parseInt(document.getElementById('capo').value, 10) || 0;
         const selectedId = document.getElementById('songSelect').value;
         const statusMsg = document.getElementById('statusMsg');
 
@@ -326,10 +358,11 @@
 
         statusMsg.innerText = "正在儲存...";
         let error, newId = null;
+        const songPayload = { title, lyrics, original_key: originalKey || null, capo };
 
         if (selectedId) {
             // update existing song and fetch updated rows (handle array or single)
-            const result = await _supabase.from('songs').update({ title, lyrics }).eq('id', selectedId).select();
+            const result = await _supabase.from('songs').update(songPayload).eq('id', selectedId).select();
             error = result.error;
             if (!error && result.data) {
                 if (Array.isArray(result.data)) newId = result.data[0] && result.data[0].id;
@@ -337,7 +370,7 @@
             }
         } else {
             // insert new song and fetch inserted rows (handle array or single)
-            const result = await _supabase.from('songs').insert([{ title, lyrics }]).select();
+            const result = await _supabase.from('songs').insert([songPayload]).select();
             error = result.error;
             if (!error && result.data) {
                 if (Array.isArray(result.data)) newId = result.data[0] && result.data[0].id;
@@ -391,7 +424,10 @@
     function renderSong() {
         const title = document.getElementById('songTitle').value || "";
         const lyrics = document.getElementById('rawLyrics').value;
+        const originalKey = document.getElementById('originalKey').value || '';
+        const capo = document.getElementById('capo').value || '';
         const titleView = document.getElementById('songTitleView');
+        const detailsView = document.getElementById('songDetailsView');
         if (titleView) {
             if (title === '') {
                 titleView.innerText = '請選擇歌曲';
@@ -400,6 +436,12 @@
                 titleView.innerText = title;
                 titleView.classList.remove('placeholder');
             }
+        }
+        if (detailsView) {
+            const details = [];
+            if (originalKey) details.push(`原Key: ${originalKey}`);
+            if (capo !== '' && capo !== '0') details.push(`Capo: ${capo}`);
+            detailsView.innerText = details.join(' · ');
         }
 
         const lines = lyrics.split('\n');
