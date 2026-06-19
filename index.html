@@ -93,7 +93,7 @@
 <button class="btn btn-primary floating-add-button" id="addSongButton" onclick="openNewSongModal()" aria-label="新增歌曲" title="新增歌曲">+</button>
 <button class="btn btn-outline floating-edit-button" id="editSongButton" onclick="openEditSongModal()" aria-label="編輯歌曲" title="編輯歌曲">✎</button>
 <div class="container">
-    <header><h1>結他Chord庫v0.2a</h1></header>
+    <header><h1>結他Chord庫v0.2b</h1></header>
     <div class="grid">
         <div id="songModalOverlay" class="modal-overlay" onclick="closeSongModal()"></div>
         <div id="songModal" class="modal-window" role="dialog" aria-modal="true" aria-labelledby="songModalTitle">
@@ -292,7 +292,9 @@
         const originalIndex = scale.indexOf(originalRoot);
         const songIndex = scale.indexOf(songRoot);
         if (originalIndex === -1 || songIndex === -1) return null;
-        return (songIndex - originalIndex + 12) % 12;
+        // capo = number of semitones to raise the chord shapes (songKey)
+        // so they sound as the originalKey: capo = original - song
+        return (originalIndex - songIndex + 12) % 12;
     }
 
     function updateCapoFromKeys() {
@@ -506,7 +508,9 @@
             const songKey = songKeyInput.value.trim();
             if (originalKey && songKey) {
                 const baseCapo = calculateCapo(originalKey, songKey) || 0;
-                const newCapo = ((baseCapo + currentOffset) % 12 + 12) % 12; // 0..11
+                // When currentOffset increases (user presses +), songKey notes go up,
+                // so capo must decrease: newCapo = baseCapo - currentOffset
+                const newCapo = ((baseCapo - currentOffset) % 12 + 12) % 12; // 0..11
                 capoVirtual = newCapo;
                 capoInput.value = Math.max(0, Math.min(12, newCapo));
             } else {
