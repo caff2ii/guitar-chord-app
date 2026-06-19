@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>結他Chord庫</title>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root { 
@@ -54,8 +55,10 @@
         .song-meta { font-size: 14px; color: var(--instruction-color); margin-bottom: 12px; }
         .modal-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
         .modal-grid .form-group { margin-bottom: 0; }
-        .btn { background-color: var(--primary-color); color: white; border: none; padding: 10px 14px; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 14px; transition: background-color 0.2s, transform 0.2s; }
+        .btn { background-color: var(--primary-color); color: white; border: none; padding: 10px 14px; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 14px; transition: background-color 0.2s, transform 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 4px; }
         .btn:hover { background-color: var(--primary-hover); transform: translateY(-1px); }
+        .btn.active, .btn.active:hover { background-color: #1e40af; }
+        .material-icons { font-family: 'Material Icons'; font-weight: normal; font-style: normal; font-size: 20px; line-height: 1; letter-spacing: normal; text-transform: none; display: inline-block; white-space: nowrap; word-wrap: normal; direction: ltr; font-feature-settings: 'liga'; -webkit-font-feature-settings: 'liga'; -webkit-font-smoothing: antialiased; }
         .btn-success { background-color: var(--success-color); width: auto; margin-top: 0; }
         .btn-success:hover { background-color: #15803d; }
         .btn-outline { background-color: var(--outline-bg); color: var(--text-color); border: 1px solid var(--border-color); }
@@ -93,7 +96,7 @@
 <button class="btn btn-primary floating-add-button" id="addSongButton" onclick="openNewSongModal()" aria-label="新增歌曲" title="新增歌曲">+</button>
 <button class="btn btn-outline floating-edit-button" id="editSongButton" onclick="openEditSongModal()" aria-label="編輯歌曲" title="編輯歌曲">✎</button>
 <div class="container">
-    <header><h1>結他Chord庫v0.2d</h1></header>
+    <header><h1>結他Chord庫v0.2e</h1></header>
     <div class="grid">
         <div id="songModalOverlay" class="modal-overlay" onclick="closeSongModal()"></div>
         <div id="songModal" class="modal-window" role="dialog" aria-modal="true" aria-labelledby="songModalTitle">
@@ -139,12 +142,15 @@
                     <span class="key-display" id="keyOffset">Original</span>
                     <button class="btn btn-outline" onclick="changeKey(1)">+1</button>
                     <button class="btn btn-outline" onclick="resetKey()">↺</button>
-                    <button class="btn btn-outline" onclick="toggleChords()" id="toggleChordsBtn" title="顯示/隱藏和弦">🎸</button>
-                    <button class="btn btn-outline" onclick="zoomOut()">-</button>
+                    <button class="btn btn-outline" onclick="toggleChords()" id="toggleChordsBtn" title="顯示/隱藏和弦"><span class="material-icons">music_note</span></button>
+                    <button class="btn btn-outline" id="colBtn1" onclick="setColumnCount(1)" title="一欄"><span class="material-icons">looks_one</span></button>
+                    <button class="btn btn-outline" id="colBtn2" onclick="setColumnCount(2)" title="兩欄"><span class="material-icons">looks_two</span></button>
+                    <button class="btn btn-outline" id="colBtn3" onclick="setColumnCount(3)" title="三欄"><span class="material-icons">looks_3</span></button>
+                    <button class="btn btn-outline" onclick="zoomOut()" title="縮小"><span class="material-icons">zoom_out</span></button>
                     <span class="zoom-display" id="zoomLevel">100%</span>
-                    <button class="btn btn-outline" onclick="zoomIn()">+</button>
-                    <button class="btn btn-outline" onclick="resetZoom()">↺</button>
-                    <button class="btn btn-outline" id="themeToggle" onclick="toggleDarkMode()" title="Toggle Dark Mode">🌙</button>
+                    <button class="btn btn-outline" onclick="zoomIn()" title="放大"><span class="material-icons">zoom_in</span></button>
+                    <button class="btn btn-outline" onclick="resetZoom()" title="重設縮放"><span class="material-icons">refresh</span></button>
+                    <button class="btn btn-outline" id="themeToggle" onclick="toggleDarkMode()" title="切換主題"><span class="material-icons">dark_mode</span></button>
                 </div>
                 <div class="toolbar-right">
                     <select id="songSelect" onchange="loadSelectedSong()">
@@ -170,6 +176,7 @@
     const outputFlatMap = { 'C#': 'Db', 'D#': 'Eb', 'F#': 'Gb', 'G#': 'Ab', 'A#': 'Bb' };
     let currentOffset = 0, fetchedSongs = [];
     let pageZoom = 100, chordsVisible = true;
+    let manualColumns = null;
     // Internal virtual capo can go negative while user-visible capo is clamped to 0..12
     // This preserves user key presses even when display is clamped.
     let capoVirtual = null;
@@ -278,7 +285,7 @@
         const btn = document.getElementById('toggleChordsBtn');
         if (!sheet || !btn) return;
         sheet.classList.toggle('hide-chords', !chordsVisible);
-        btn.innerText = chordsVisible ? '🎸' : '🎸';
+        btn.innerHTML = chordsVisible ? '<span class="material-icons">music_note</span>' : '<span class="material-icons">music_off</span>';
         btn.title = chordsVisible ? '隱藏和弦' : '顯示和弦';
     }
 
@@ -318,15 +325,30 @@
         }
     }
 
+    function updateColumnButtons() {
+        [1, 2, 3].forEach(count => {
+            const button = document.getElementById('colBtn' + count);
+            if (button) button.classList.toggle('active', manualColumns === count);
+        });
+    }
+
+    function setColumnCount(count) {
+        manualColumns = count;
+        updateColumnButtons();
+        updateColumnCount();
+    }
+
     function updateColumnCount() {
         const sheet = document.getElementById('lyricsSheet');
         if (!sheet) return;
-        // Use the actual element width. Zoom changes only the font size,
-        // so column decisions are based on the available sheet width.
-        const width = Math.round(sheet.getBoundingClientRect().width);
         let count = 1;
-        if (width >= 780) count = 3;
-        else if (width >= 520) count = 2;
+        if (manualColumns !== null) {
+            count = manualColumns;
+        } else {
+            const width = Math.round(sheet.getBoundingClientRect().width);
+            if (width >= 780) count = 3;
+            else if (width >= 520) count = 2;
+        }
         sheet.style.columnCount = count;
     }
 
@@ -356,7 +378,7 @@
 
     function updateThemeButton(isDark) {
         const btn = document.getElementById('themeToggle');
-        if (btn) btn.innerText = isDark ? '☀️' : '🌙';
+        if (btn) btn.innerHTML = isDark ? '<span class="material-icons">light_mode</span>' : '<span class="material-icons">dark_mode</span>';
     }
 
     window.onload = function() {
@@ -366,6 +388,7 @@
         fetchAllSongs();
         renderSong();
         updateColumnCount();
+        updateColumnButtons();
         const select = document.getElementById('songSelect');
         if (select) select.addEventListener('change', updateEditButtonState);
     };
