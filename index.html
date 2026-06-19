@@ -100,7 +100,7 @@
 <button class="btn btn-primary floating-add-button" id="addSongButton" onclick="openNewSongModal()" aria-label="新增歌曲" title="新增歌曲">+</button>
 <button class="btn btn-outline floating-edit-button" id="editSongButton" onclick="openEditSongModal()" aria-label="編輯歌曲" title="編輯歌曲">✎</button>
 <div class="container">
-    <header><h1>結他Chord庫v0.2f</h1></header>
+    <header><h1>結他Chord庫v0.2g</h1></header>
     <div class="grid">
         <div id="songModalOverlay" class="modal-overlay" onclick="closeSongModal()"></div>
         <div id="songModal" class="modal-window" role="dialog" aria-modal="true" aria-labelledby="songModalTitle">
@@ -337,20 +337,15 @@
     }
 
     function setColumnCount(count) {
+        if (![1, 2, 3].includes(count)) return;
         manualColumns = count;
         updateColumnButtons();
         updateColumnCount();
+        renderSong();
     }
 
     function initializeColumnButtons() {
-        document.querySelectorAll('[data-columns]').forEach(button => {
-            button.addEventListener('click', () => {
-                const count = Number(button.getAttribute('data-columns'));
-                if ([1, 2, 3].includes(count)) {
-                    setColumnCount(count);
-                }
-            });
-        });
+        updateColumnButtons();
     }
 
     function updateColumnCount() {
@@ -474,7 +469,9 @@
                 const parsedCapo = parseInt(capoValue, 10);
                 capoVirtual = Number.isNaN(parsedCapo) ? null : parsedCapo;
             }
-            resetKey(); renderSong();
+            currentOffset = 0;
+            document.getElementById('keyOffset').innerText = "Original";
+            renderSong();
         }
     }
 
@@ -492,7 +489,7 @@
 
         statusMsg.innerText = "正在儲存...";
         let error, newId = null;
-        const songPayload = { title, lyrics, original_key: originalKey || null, song_key: songKey || null, capo };
+        const songPayload = { title, lyrics, original_key: originalKey || null, song_key: songKey || null, capo: capoVirtual !== null ? capoVirtual : 0 };
 
         if (selectedId) {
             // update existing song and fetch updated rows (handle array or single)
@@ -542,30 +539,27 @@
     }
 
     function changeKey(amount) {
-        currentOffset = (currentOffset + amount) % 12;
-        if (currentOffset > 6) currentOffset -= 12;
-        if (currentOffset < -5) currentOffset += 12;
-        // If originalKey and songKey are provided, compute capo from their difference
-        // plus the current offset so capo stays consistent with transposition.
         const originalKeyInput = document.getElementById('originalKey');
         const songKeyInput = document.getElementById('songKey');
         const capoInput = document.getElementById('capo');
-        if (originalKeyInput && songKeyInput && capoInput) {
+        const hasKeys = originalKeyInput && songKeyInput && originalKeyInput.value.trim() && songKeyInput.value.trim();
+        
+        if (hasKeys) {
+            // When we have originalKey and songKey, transposition is via currentOffset
+            currentOffset = (currentOffset + amount) % 12;
+            if (currentOffset > 6) currentOffset -= 12;
+            if (currentOffset < -5) currentOffset += 12;
+            
             const originalKey = originalKeyInput.value.trim();
             const songKey = songKeyInput.value.trim();
-            if (originalKey && songKey) {
-                const baseCapo = calculateCapo(originalKey, songKey) || 0;
-                // When currentOffset increases (user presses +), songKey notes go up,
-                // so capo must decrease: newCapo = baseCapo - currentOffset.
-                // Do not wrap around with mod 12 here, because negative capo
-                // means the visible capo should clamp at 0 rather than jump to 11.
-                const newCapo = baseCapo - currentOffset;
-                capoVirtual = newCapo;
-                capoInput.value = Math.max(0, Math.min(12, newCapo));
-            } else {
-                adjustCapo(amount);
-            }
+            const baseCapo = calculateCapo(originalKey, songKey) || 0;
+            // When currentOffset increases (user presses +), songKey notes go up,
+            // so capo must decrease: newCapo = baseCapo - currentOffset.
+            const newCapo = baseCapo - currentOffset;
+            capoVirtual = newCapo;
+            if (capoInput) capoInput.value = Math.max(0, Math.min(12, newCapo));
         } else {
+            // Without keys, transposition is via capo adjustment directly
             adjustCapo(amount);
         }
         document.getElementById('keyOffset').innerText = currentOffset === 0 ? "Original" : `Key ${currentOffset > 0 ? '+' : ''}${currentOffset}`;
