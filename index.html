@@ -92,7 +92,7 @@
 <button class="btn btn-primary floating-add-button" id="addSongButton" onclick="openNewSongModal()" aria-label="新增歌曲" title="新增歌曲">+</button>
 <button class="btn btn-outline floating-edit-button" id="editSongButton" onclick="openEditSongModal()" aria-label="編輯歌曲" title="編輯歌曲">✎</button>
 <div class="container">
-    <header><h1>結他Chord庫v0.1h</h1></header>
+    <header><h1>結他Chord庫v0.2</h1></header>
     <div class="grid">
         <div id="songModalOverlay" class="modal-overlay" onclick="closeSongModal()"></div>
         <div id="songModal" class="modal-window" role="dialog" aria-modal="true" aria-labelledby="songModalTitle">
@@ -169,6 +169,9 @@
     const outputFlatMap = { 'C#': 'Db', 'D#': 'Eb', 'F#': 'Gb', 'G#': 'Ab', 'A#': 'Bb' };
     let currentOffset = 0, fetchedSongs = [];
     let pageZoom = 100, chordsVisible = true;
+    // Internal virtual capo can go negative while user-visible capo is clamped to 0..12
+    // This preserves user key presses even when display is clamped.
+    let capoVirtual = null;
 
     // Dark mode functions
     function loadThemePreference() {
@@ -300,7 +303,10 @@
         const songKey = songKeyInput.value.trim();
         if (!originalKey || !songKey) return;
         const capo = calculateCapo(originalKey, songKey);
-        if (capo !== null) capoInput.value = capo;
+        if (capo !== null) {
+            capoVirtual = capo;
+            capoInput.value = capo;
+        }
     }
 
     function updateColumnCount() {
@@ -369,7 +375,11 @@
         updateCapoFromKeys();
         renderSong();
     });
-    document.getElementById('capo').addEventListener('input', () => renderSong());
+    document.getElementById('capo').addEventListener('input', function (e) {
+        const v = parseInt(e.target.value, 10);
+        capoVirtual = Number.isNaN(v) ? null : v;
+        renderSong();
+    });
     document.getElementById('rawLyrics').addEventListener('input', () => renderSong());
 
     async function fetchAllSongs() {
@@ -410,7 +420,10 @@
             if (lyricsInput) lyricsInput.value = song.lyrics || '';
             if (originalKeyInput) originalKeyInput.value = song.original_key || '';
             if (songKeyInput) songKeyInput.value = song.song_key || '';
-            if (capoInput) capoInput.value = song.capo || '';
+            if (capoInput) {
+                capoInput.value = song.capo || '';
+                capoVirtual = (typeof song.capo === 'number') ? song.capo : (song.capo ? parseInt(song.capo, 10) : null);
+            }
             resetKey(); renderSong();
         }
     }
@@ -469,20 +482,38 @@
     function adjustCapo(amount) {
         const capoInput = document.getElementById('capo');
         if (!capoInput) return;
-        const currentCapo = parseInt(capoInput.value, 10);
-        if (Number.isNaN(currentCapo)) {
-            if (amount > 0) capoInput.value = amount;
-            return;
+        if (capoVirtual === null) {
+            const parsed = parseInt(capoInput.value, 10);
+            capoVirtual = Number.isNaN(parsed) ? 0 : parsed;
         }
-        const nextCapo = Math.max(0, Math.min(12, currentCapo + amount));
-        capoInput.value = nextCapo;
+        capoVirtual += amount;
+        const display = Math.max(0, Math.min(12, capoVirtual));
+        capoInput.value = display;
     }
 
     function changeKey(amount) {
         currentOffset = (currentOffset + amount) % 12;
         if (currentOffset > 6) currentOffset -= 12;
         if (currentOffset < -5) currentOffset += 12;
-        adjustCapo(amount);
+        // If originalKey and songKey are provided, compute capo from their difference
+        // plus the current offset so capo stays consistent with transposition.
+        const originalKeyInput = document.getElementById('originalKey');
+        const songKeyInput = document.getElementById('songKey');
+        const capoInput = document.getElementById('capo');
+        if (originalKeyInput && songKeyInput && capoInput) {
+            const originalKey = originalKeyInput.value.trim();
+            const songKey = songKeyInput.value.trim();
+            if (originalKey && songKey) {
+                const baseCapo = calculateCapo(originalKey, songKey) || 0;
+                const newCapo = ((baseCapo + currentOffset) % 12 + 12) % 12; // 0..11
+                capoVirtual = newCapo;
+                capoInput.value = Math.max(0, Math.min(12, newCapo));
+            } else {
+                adjustCapo(amount);
+            }
+        } else {
+            adjustCapo(amount);
+        }
         document.getElementById('keyOffset').innerText = currentOffset === 0 ? "Original" : `Key ${currentOffset > 0 ? '+' : ''}${currentOffset}`;
         renderSong();
     }
