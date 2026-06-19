@@ -21,6 +21,7 @@
             --outline-bg: rgba(255,255,255,0.9);
             --outline-hover: rgba(255,255,255,1);
             --page-scale: 1;
+            --lyrics-font-size: 16px;
         }
         [data-theme="dark"] { 
             --bg-color: #0f172a;
@@ -38,7 +39,7 @@
             --outline-hover: rgba(255,255,255,0.12);
         }
         body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 20px; display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; transition: background-color 0.2s, color 0.2s; }
-        .container { max-width: 1400px; transform-origin: top center; transform: scale(var(--page-scale)); }
+        .container { max-width: 1400px; }
         header { text-align: center; margin-bottom: 24px; }
         .grid { display: grid; grid-template-columns: 1fr; gap: 24px; }
         .card { background: var(--card-bg); padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); height: fit-content; transition: background-color 0.2s; }
@@ -72,7 +73,7 @@
         .key-display, .zoom-display { font-weight: 600; min-width: 80px; text-align: center; }
         .song-title-view { font-size: 24px; font-weight: bold; margin-bottom: 20px; }
         .song-title-view.placeholder { color: var(--instruction-color); font-style: italic; }
-        .lyrics-sheet { column-gap: 40px; column-count: 1; column-fill: auto; white-space: pre-wrap; font-family: 'Courier New', Courier, monospace; font-size: 16px; line-height: 1.25; }
+        .lyrics-sheet { column-gap: 40px; column-count: 1; column-fill: auto; white-space: pre-wrap; font-family: 'Courier New', Courier, monospace; font-size: var(--lyrics-font-size); line-height: 1.25; }
         @media (min-width: 768px) { .lyrics-sheet { column-count: 2; } }
         @media (min-width: 1024px) { .lyrics-sheet { column-count: 3; } }
         .lyrics-sheet.hide-chords .chord-line { display: none; }
@@ -92,7 +93,7 @@
 <button class="btn btn-primary floating-add-button" id="addSongButton" onclick="openNewSongModal()" aria-label="新增歌曲" title="新增歌曲">+</button>
 <button class="btn btn-outline floating-edit-button" id="editSongButton" onclick="openEditSongModal()" aria-label="編輯歌曲" title="編輯歌曲">✎</button>
 <div class="container">
-    <header><h1>結他Chord庫v0.2</h1></header>
+    <header><h1>結他Chord庫v0.2a</h1></header>
     <div class="grid">
         <div id="songModalOverlay" class="modal-overlay" onclick="closeSongModal()"></div>
         <div id="songModal" class="modal-window" role="dialog" aria-modal="true" aria-labelledby="songModalTitle">
@@ -312,12 +313,9 @@
     function updateColumnCount() {
         const sheet = document.getElementById('lyricsSheet');
         if (!sheet) return;
-        // When container is scaled via CSS transform, getBoundingClientRect() returns
-        // a scaled width. Use the logical (unscaled) width by dividing out the
-        // current page scale so column decisions aren't affected by zoom.
-        const scaledWidth = sheet.getBoundingClientRect().width;
-        const scaleFactor = (typeof pageZoom === 'number' && pageZoom > 0) ? (pageZoom / 100) : 1;
-        const width = Math.round(scaledWidth / scaleFactor);
+        // Use the actual element width. We no longer scale the container via CSS
+        // transform; zoom changes font size only so column decisions use real width.
+        const width = Math.round(sheet.getBoundingClientRect().width);
         let count = 1;
         if (width >= 1024) count = 3;
         else if (width >= 720) count = 2;
@@ -326,7 +324,10 @@
 
     function setZoom(value) {
         pageZoom = Math.max(50, Math.min(150, value));
-        document.documentElement.style.setProperty('--page-scale', pageZoom / 100);
+        // Adjust lyrics font-size rather than scaling the whole container so
+        // the layout (column count) can reflow based on actual width.
+        const base = 16; // base font size in px
+        document.documentElement.style.setProperty('--lyrics-font-size', (base * pageZoom / 100) + 'px');
         const zoomLabel = document.getElementById('zoomLevel');
         if (zoomLabel) zoomLabel.innerText = pageZoom + '%';
         localStorage.setItem('pageZoom', pageZoom);
