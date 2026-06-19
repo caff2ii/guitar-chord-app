@@ -77,7 +77,8 @@
         .modal-header h2 { margin: 0; font-size: 18px; }
         .modal-close { width: 38px; min-width: 38px; height: 38px; border-radius: 50%; font-size: 18px; }
         .modal-actions { display: flex; justify-content: flex-end; margin-top: 18px; }
-        .key-display, .zoom-display { font-weight: 600; min-width: 80px; text-align: center; }
+        .key-display { font-weight: 600; min-width: 80px; text-align: center; }
+        .zoom-display { font-weight: 600; min-width: 45px; text-align: center; }
         .song-title-view { font-size: 24px; font-weight: bold; margin-bottom: 20px; }
         .song-title-view.placeholder { color: var(--instruction-color); font-style: italic; }
         .lyrics-sheet { column-gap: 40px; column-count: 1; column-fill: auto; white-space: pre-wrap; font-family: 'Courier New', Courier, monospace; font-size: var(--lyrics-font-size); line-height: 1.25; }
@@ -102,7 +103,7 @@
 <button class="btn btn-primary floating-add-button" id="addSongButton" onclick="openNewSongModal()" aria-label="新增歌曲" title="新增歌曲">+</button>
 <button class="btn btn-outline floating-edit-button" id="editSongButton" onclick="openEditSongModal()" aria-label="編輯歌曲" title="編輯歌曲">✎</button>
 <div class="container">
-    <header><h1>結他Chord庫v0.3</h1></header>
+    <header><h1>結他Chord庫v0.3a</h1></header>
     <div class="grid">
         <div id="songModalOverlay" class="modal-overlay" onclick="closeSongModal()"></div>
         <div id="songModal" class="modal-window" role="dialog" aria-modal="true" aria-labelledby="songModalTitle">
