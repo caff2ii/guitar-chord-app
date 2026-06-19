@@ -18,6 +18,7 @@
             --border-color: #cbd5e1;
             --input-border: #cbd5e1;
             --instruction-color: #64748b;
+            --page-scale: 1;
         }
         [data-theme="dark"] { 
             --bg-color: #0f172a;
@@ -33,7 +34,7 @@
             --instruction-color: #cbd5e1;
         }
         body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 20px; transition: background-color 0.2s, color 0.2s; }
-        .container { max-width: 1400px; margin: 0 auto; }
+        .container { max-width: 1400px; margin: 0 auto; transform-origin: top left; transform: scale(var(--page-scale)); }
         header { text-align: center; margin-bottom: 24px; }
         .grid { display: grid; grid-template-columns: 1fr; gap: 24px; }
         @media (min-width: 992px) { .grid { grid-template-columns: 450px 1fr; } }
@@ -51,7 +52,9 @@
         .sidebar-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; }
         .collapse-button { width: 38px; min-width: 38px; padding: 8px 0; }
         .sidebar-collapsed #sidebarContent { display: none; }
-        .grid.sidebar-collapsed { grid-template-columns: 1fr; }
+        .grid.sidebar-collapsed { grid-template-columns: auto 1fr; }
+        .sidebar-collapsed #sidebarCard { width: 0; min-width: 0; padding: 0; margin: 0; border: none; box-shadow: none; overflow: hidden; }
+        .sidebar-toggle-button { position: fixed; left: 12px; top: 50%; transform: translateY(-50%); z-index: 20; white-space: nowrap; }
         .key-display, .zoom-display { font-weight: 600; min-width: 80px; text-align: center; }
         .song-title-view { font-size: 24px; font-weight: bold; margin-bottom: 20px; }
         .lyrics-sheet { display: grid; grid-template-columns: 1fr; gap: 40px; }
@@ -66,13 +69,13 @@
     </style>
 </head>
 <body>
+<button class="btn btn-outline sidebar-toggle-button" id="sidebarToggleButton" onclick="toggleSongList()">顯示/隱藏歌曲列表</button>
 <div class="container">
     <header><h1>Guitar Chord Transposer</h1></header>
     <div class="grid">
         <div class="card" id="sidebarCard">
             <div class="sidebar-header">
                 <label for="songSelect">雲端歌曲列表 (Load Song)</label>
-                <button class="btn btn-outline collapse-button" id="toggleSidebarBtn" onclick="toggleSongList()" title="收起清單">▼</button>
             </div>
             <div id="sidebarContent">
                 <div class="form-group">
@@ -149,13 +152,12 @@
 
     function updateSidebarState() {
         const sidebar = document.getElementById('sidebarCard');
-        const button = document.getElementById('toggleSidebarBtn');
+        const button = document.getElementById('sidebarToggleButton');
         const grid = document.querySelector('.grid');
         if (!sidebar || !button || !grid) return;
         sidebar.classList.toggle('sidebar-collapsed', sidebarCollapsed);
         grid.classList.toggle('sidebar-collapsed', sidebarCollapsed);
-        button.innerText = sidebarCollapsed ? '▲' : '▼';
-        button.title = sidebarCollapsed ? '展開清單' : '收起清單';
+        button.innerText = sidebarCollapsed ? '顯示歌曲列表' : '隱藏歌曲列表';
     }
 
     function loadZoomPreference() {
@@ -168,7 +170,7 @@
 
     function setZoom(value) {
         pageZoom = Math.max(50, Math.min(150, value));
-        document.body.style.zoom = pageZoom + '%';
+        document.documentElement.style.setProperty('--page-scale', pageZoom / 100);
         const zoomLabel = document.getElementById('zoomLevel');
         if (zoomLabel) zoomLabel.innerText = pageZoom + '%';
         localStorage.setItem('pageZoom', pageZoom);
