@@ -33,8 +33,8 @@
             --input-border: #334155;
             --instruction-color: #cbd5e1;
         }
-        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 20px; transition: background-color 0.2s, color 0.2s; }
-        .container { max-width: 1400px; margin: 0 auto; transform-origin: top left; transform: scale(var(--page-scale)); }
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 20px; display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; transition: background-color 0.2s, color 0.2s; }
+        .container { max-width: 1400px; transform-origin: top center; transform: scale(var(--page-scale)); }
         header { text-align: center; margin-bottom: 24px; }
         .grid { display: grid; grid-template-columns: 1fr; gap: 24px; }
         @media (min-width: 992px) { .grid { grid-template-columns: 450px 1fr; } }
@@ -52,13 +52,16 @@
         .sidebar-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; }
         .collapse-button { width: 38px; min-width: 38px; padding: 8px 0; }
         .sidebar-collapsed #sidebarContent { display: none; }
-        .grid.sidebar-collapsed { grid-template-columns: auto 1fr; }
-        .sidebar-collapsed #sidebarCard { width: 0; min-width: 0; padding: 0; margin: 0; border: none; box-shadow: none; overflow: hidden; }
-        .sidebar-toggle-button { position: fixed; left: 12px; top: 50%; transform: translateY(-50%); z-index: 20; white-space: nowrap; }
+        .grid.sidebar-collapsed { grid-template-columns: 1fr; }
+        .sidebar-collapsed #sidebarCard { display: none; }
+        .sidebar-toggle-button { position: fixed; left: 12px; top: 50%; transform: translateY(-50%); z-index: 20; width: 42px; height: 42px; border-radius: 50%; padding: 0; font-size: 20px; text-align: center; line-height: 42px; }
         .key-display, .zoom-display { font-weight: 600; min-width: 80px; text-align: center; }
         .song-title-view { font-size: 24px; font-weight: bold; margin-bottom: 20px; }
-        .lyrics-sheet { display: grid; grid-template-columns: 1fr; gap: 40px; }
-        @media (min-width: 768px) { .lyrics-sheet { grid-template-columns: 1fr 1fr; } }
+        .lyrics-sheet { column-gap: 40px; column-count: 1; column-fill: auto; }
+        @media (min-width: 768px) { .lyrics-sheet { column-count: 2; } }
+        @media (min-width: 1200px) { .lyrics-sheet { column-count: 3; } }
+        .lyrics-sheet.hide-chords .chord-line { display: none; }
+        .lyrics-section { display: inline-block; width: 100%; break-inside: avoid; -webkit-column-break-inside: avoid; page-break-inside: avoid; margin-bottom: 20px; }
         .column { font-family: 'Courier New', Courier, monospace; font-size: 16px; line-height: 1.8; white-space: pre-wrap; }
         .chord-line { color: var(--chord-color); font-weight: bold; margin-bottom: -4px; display: block; }
         .text-line { display: block; margin-bottom: 8px; }
@@ -69,7 +72,7 @@
     </style>
 </head>
 <body>
-<button class="btn btn-outline sidebar-toggle-button" id="sidebarToggleButton" onclick="toggleSongList()">顯示/隱藏歌曲列表</button>
+<button class="btn btn-outline sidebar-toggle-button" id="sidebarToggleButton" onclick="toggleSongList()" aria-label="顯示或隱藏歌曲列表" title="顯示/隱藏歌曲列表">☰</button>
 <div class="container">
     <header><h1>Guitar Chord Transposer</h1></header>
     <div class="grid">
@@ -93,7 +96,7 @@
                     <textarea id="rawLyrics" placeholder="[Intro]&#10;C  G  Am  F&#10;&#10;[Verse 1]&#10;C        G&#10;今天我 寒夜裡看雪飄過&#10;&#10;[break]&#10;&#10;[Chorus]&#10;Am       F&#10;原諒我這一生不羈放縱愛自由"></textarea>
                     <div class="instruction">
                         * 結構標籤請用中括號，如：[Verse 1], [Chorus], [Bridge], [Coda]<br>
-                        * 輸入單獨一行的 <strong>[break]</strong> 即可將之後的內容切換到右邊第二欄。
+                        * 歌詞會自動依 section 分欄，不需要手動加 <strong>[break]</strong>；若要強制段落分割仍可使用它。
                     </div>
                 </div>
                 <button class="btn btn-success" onclick="saveSongToCloud()">💾 儲存到雲端 Database</button>
@@ -106,6 +109,7 @@
                 <span class="key-display" id="keyOffset">Original</span>
                 <button class="btn btn-outline" onclick="changeKey(1)">Key +1</button>
                 <button class="btn btn-outline" onclick="resetKey()">Reset</button>
+                <button class="btn btn-outline" onclick="toggleChords()" id="toggleChordsBtn" title="顯示/隱藏和弦">🎸</button>
                 <button class="btn btn-outline" onclick="zoomOut()">Zoom -</button>
                 <span class="zoom-display" id="zoomLevel">100%</span>
                 <button class="btn btn-outline" onclick="zoomIn()">Zoom +</button>
@@ -114,10 +118,7 @@
                 <span id="statusMsg"></span>
             </div>
             <div id="songTitleView" class="song-title-view"></div>
-            <div class="lyrics-sheet">
-                <div id="col1" class="column"></div>
-                <div id="col2" class="column"></div>
-            </div>
+            <div class="lyrics-sheet" id="lyricsSheet"></div>
         </div>
     </div>
 </div>
@@ -129,8 +130,9 @@
     const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     const scale = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
     const flatMap = { 'Db': 'C#', 'Eb': 'D#', 'Gb': 'F#', 'Ab': 'G#', 'Bb': 'A#' };
+    const outputFlatMap = { 'C#': 'Db', 'D#': 'Eb', 'F#': 'Gb', 'G#': 'Ab', 'A#': 'Bb' };
     let currentOffset = 0, fetchedSongs = [];
-    let pageZoom = 100, sidebarCollapsed = false;
+    let pageZoom = 100, sidebarCollapsed = false, chordsVisible = true;
 
     // Dark mode functions
     function loadThemePreference() {
@@ -168,6 +170,29 @@
         setZoom(pageZoom);
     }
 
+    function toggleChords() {
+        chordsVisible = !chordsVisible;
+        localStorage.setItem('chordsVisible', chordsVisible);
+        updateChordVisibility();
+    }
+
+    function loadChordPreference() {
+        const stored = localStorage.getItem('chordsVisible');
+        if (stored !== null) {
+            chordsVisible = stored === 'true';
+        }
+        updateChordVisibility();
+    }
+
+    function updateChordVisibility() {
+        const sheet = document.getElementById('lyricsSheet');
+        const btn = document.getElementById('toggleChordsBtn');
+        if (!sheet || !btn) return;
+        sheet.classList.toggle('hide-chords', !chordsVisible);
+        btn.innerText = chordsVisible ? '🎸' : '🎸';
+        btn.title = chordsVisible ? '隱藏和弦' : '顯示和弦';
+    }
+
     function setZoom(value) {
         pageZoom = Math.max(50, Math.min(150, value));
         document.documentElement.style.setProperty('--page-scale', pageZoom / 100);
@@ -197,6 +222,7 @@
         loadThemePreference();
         loadSidebarPreference();
         loadZoomPreference();
+        loadChordPreference();
         fetchAllSongs();
         renderSong();
     };
@@ -280,9 +306,12 @@
     function transposeChord(chord, offset) {
         if (offset === 0) return chord;
         return chord.replace(/([A-G][#b]?)/g, (match) => {
-            let note = match; if (flatMap[note]) note = flatMap[note];
-            let index = scale.indexOf(note); if (index === -1) return match;
-            return scale[(index + offset + 12) % 12];
+            let note = match;
+            if (flatMap[note]) note = flatMap[note];
+            let index = scale.indexOf(note);
+            if (index === -1) return match;
+            const transposed = scale[(index + offset + 12) % 12];
+            return outputFlatMap[transposed] || transposed;
         });
     }
 
@@ -295,25 +324,52 @@
         const title = document.getElementById('songTitle').value || "未命名歌曲";
         const lyrics = document.getElementById('rawLyrics').value;
         document.getElementById('songTitleView').innerText = title;
-        
+
         const lines = lyrics.split('\n');
-        let col1 = "", col2 = "", currentColumn = 1;
+        const sections = [];
+        let currentSection = { header: '', lines: [] };
         const sectionRegex = /^\[(Verse\s*\d*|Chorus\s*\d*|Pre-Chorus|Bridge|Coda|Intro|Outro|Solo)\]$/i;
 
-        lines.forEach(line => {
-            let trimmed = line.trim();
-            if (trimmed.toLowerCase() === '[break]') { currentColumn = 2; return; }
-            let html = "";
-            if (sectionRegex.test(trimmed)) {
-                html = `<span class="section-header">${trimmed.match(/^\[(.*)\]$/)[1]}</span>\n`;
-            } else if (isChordLine(line)) {
-                html = `<span class="chord-line">${line.replace(/([A-G][#b]?[^\s]*)/g, match => transposeChord(match, currentOffset))}</span>`;
-            } else {
-                html = line === "" ? "\n" : `<span class="text-line">${line}</span>`;
+        function pushSection() {
+            if (currentSection.header || currentSection.lines.length) {
+                sections.push(currentSection);
+                currentSection = { header: '', lines: [] };
             }
-            if (currentColumn === 1) col1 += html; else col2 += html;
+        }
+
+        lines.forEach(line => {
+            const trimmed = line.trim();
+            if (trimmed.toLowerCase() === '[break]') {
+                pushSection();
+                return;
+            }
+            if (sectionRegex.test(trimmed)) {
+                pushSection();
+                currentSection.header = trimmed.match(/^\[(.*)\]$/)[1];
+                return;
+            }
+            currentSection.lines.push(line);
         });
-        document.getElementById('col1').innerHTML = col1; document.getElementById('col2').innerHTML = col2;
+        pushSection();
+
+        const sheet = document.getElementById('lyricsSheet');
+        if (!sheet) return;
+
+        sheet.innerHTML = sections.map(section => {
+            let html = '<div class="lyrics-section">';
+            if (section.header) html += `<div class="section-header">${section.header}</div>`;
+            section.lines.forEach(line => {
+                if (line.trim() === '') {
+                    html += '<div class="text-line">&nbsp;</div>';
+                } else if (isChordLine(line)) {
+                    html += `<div class="chord-line">${line.replace(/([A-G][#b]?[^\s]*)/g, match => transposeChord(match, currentOffset))}</div>`;
+                } else {
+                    html += `<div class="text-line">${line}</div>`;
+                }
+            });
+            html += '</div>';
+            return html;
+        }).join('');
     }
 </script>
 </body>
