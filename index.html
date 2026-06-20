@@ -82,8 +82,12 @@
         .song-title-view { font-size: 24px; font-weight: bold; margin-bottom: 20px; }
         .song-title-view.placeholder { color: var(--instruction-color); font-style: italic; }
         .lyrics-sheet { column-gap: 40px; column-count: 1; column-fill: auto; white-space: pre-wrap; font-family: 'Courier New', Courier, monospace; font-size: var(--lyrics-font-size); line-height: 1.25; }
-        @media (min-width: 768px) { .lyrics-sheet { column-count: 2; } }
-        @media (min-width: 1024px) { .lyrics-sheet { column-count: 3; } }
+        /*@media (min-width: 768px) { .lyrics-sheet { column-count: 2; } }
+        @media (min-width: 1024px) { .lyrics-sheet { column-count: 3; } }*/
+        /* 改用明確的 Class 控制 */
+        .lyrics-sheet.col-1 { column-count: 1 !important; }
+        .lyrics-sheet.col-2 { column-count: 2 !important; }
+        .lyrics-sheet.col-3 { column-count: 3 !important; }
         .lyrics-sheet.hide-chords .chord-line { display: none; }
         .lyrics-section { display: block; break-inside: avoid; -webkit-column-break-inside: avoid; page-break-inside: avoid; margin-bottom: 0px; white-space: pre-wrap; }
         /* 只有當 section 緊接在另一個 section 後面時，才補一點點底邊距，確保有一行空間 */
@@ -103,7 +107,7 @@
 <button class="btn btn-primary floating-add-button" id="addSongButton" onclick="openNewSongModal()" aria-label="新增歌曲" title="新增歌曲">+</button>
 <button class="btn btn-outline floating-edit-button" id="editSongButton" onclick="openEditSongModal()" aria-label="編輯歌曲" title="編輯歌曲">✎</button>
 <div class="container">
-    <header><h1>結他Chord庫v0.3b</h1></header>
+    <header><h1>結他Chord庫v0.3c</h1></header>
     <div class="grid">
         <div id="songModalOverlay" class="modal-overlay" onclick="closeSongModal()"></div>
         <div id="songModal" class="modal-window" role="dialog" aria-modal="true" aria-labelledby="songModalTitle">
@@ -362,7 +366,10 @@
             if (width >= 780) count = 3;
             else if (width >= 520) count = 2;
         }
-        sheet.style.setProperty('column-count', count, 'important');
+        // 先移除所有舊的欄數 Class
+        sheet.classList.remove('col-1', 'col-2', 'col-3');
+        // 根據計算或手動設定，加上對應的 Class
+        sheet.classList.add('col-' + count);
     }
 
     function setZoom(value) {
